@@ -7,21 +7,10 @@
 /*uint32_t max(uint32_t x, uint32_t y) {
 	return x ^ ((x ^ y) & -(x < y));
 }*/
-
-/*
-void debug_print_bitmap(memory_metadata *meta) {
-	uint16_t z;
-	for(z=0; z<meta->size*32; z++) {
-		if(z % 32 == 0) {
-			printf(" ");
-		}
-		bitmap_index  = z / 32;
-		bitmap_offset = z % 32;
-		printf("%d",  read_bitmap(bitmap[bitmap_index], bitmap_offset));
-	}
-	printf("\n");
-}
-*/
+typedef struct  {
+	uint16_t offset;
+	uint16_t size;
+} memory_object_entry;
 
 uint16_t ceil_division(uint16_t a, uint16_t b) {
 	return ceil((float) a / (float) b);
@@ -44,9 +33,11 @@ uint32_t *memory_metadata_get_bitmap(memory_metadata *metadata) {
 	return (uint32_t*) (metadata_addr + sizeof(memory_metadata));
 }
 
-uint16_t *memory_metadata_get_chunk_list(memory_metadata *metadata) {
+memory_object_entry *memory_metadata_get_chunk_list(
+	memory_metadata *metadata) 
+{
 	void *metadata_addr = metadata;
-	return (uint16_t*) 
+	return (memory_object_entry*) 
 		(metadata_addr + sizeof(memory_metadata) + 
 			metadata->size * sizeof(uint32_t));
 }
@@ -56,7 +47,7 @@ void *memory_metadata_get_data(memory_metadata *metadata) {
 	return (uint16_t*) 
 		(metadata_addr + sizeof(memory_metadata) + 
 		 metadata->size * sizeof(uint32_t) +
-		 metadata->maximum_objects * sizeof(uint16_t));
+		 metadata->maximum_objects * sizeof(memory_object_entry));
 }
 
 memory_metadata *memory_metadata_create(void *addr, uint16_t size,
@@ -72,6 +63,30 @@ memory_metadata *memory_metadata_create(void *addr, uint16_t size,
 	
 	
 	return metadata;
+}
+
+void debug_print_bitmap(memory_metadata *meta) {
+	uint32_t *bitmap = memory_metadata_get_bitmap(meta);
+	printf("Bitmap: ");
+	uint16_t z;
+	for(z=0; z<meta->size*32; z++) {
+		if(z % 32 == 0) {
+			printf(" ");
+		}
+		int bitmap_index  = z / 32;
+		int bitmap_offset = z % 32;
+		printf("%d",  read_bitmap(bitmap[bitmap_index], bitmap_offset));
+	}
+	printf("\n");
+	
+	printf("Objects: ({offset, size}) ");
+	memory_object_entry *chunk_list = 
+		memory_metadata_get_chunk_list(meta);
+	int i;
+	for(i = 0; i < meta->number_objects; i++) {
+		printf("{%d,%d},", chunk_list[i].offset, chunk_list[i].size);
+	}
+	printf("\n");
 }
 
 void *ule_malloc(memory_metadata *meta, size_t size_) {
@@ -106,15 +121,58 @@ void *ule_malloc(memory_metadata *meta, size_t size_) {
 			}
 			
 			// Add to chunk list.
-			uint16_t *chunk_list = 
+			memory_object_entry *chunk_list = 
 				memory_metadata_get_chunk_list(meta);
-			chunk_list[++(meta->number_objects)] = size_;
+			chunk_list[meta->number_objects].offset = i;
+			chunk_list[meta->number_objects].size = size_;
+			meta->number_objects++;
 			
 			void *data = memory_metadata_get_data(meta);
+			debug_print_bitmap(meta);
 			return data + i * chunk_size;
 		}
 	}
 	
 	// If we get here, that means we found nothing!
 	return NULL;
+}
+
+void ule_free(memory_metadata* meta, void *addr) {
+	void *data = memory_metadata_get_data(meta);
+	uint16_t offset = (addr - data) / chunk_size;
+	
+	// First find the entry, delete it, and adjust the size.
+	memory_object_entry *chunk_list = 
+		memory_metadata_get_chunk_list(meta);
+	uint16_t size_ = 0;
+	uint16_t i;
+	
+	// The index where we deleted, we need to replace this with the
+	// last chunk.
+	int16_t plug_hole = -1; 
+	for(i = 0; i < meta->number_objects; i++) {
+		if(chunk_list[i].offset == offset) {
+			plug_hole = i;
+			size_ = chunk_list[i].size;
+		}
+	}
+	
+	//assert(plug_hole != -1);
+	// Plug hole by moving the last entry to the place
+	// where we just removed an entry.
+	chunk_list[plug_hole] = chunk_list[i-1];
+	
+	// Update size of chunk list.
+	meta->number_objects--;
+	
+	// Now remove from bitmap.
+	uint32_t *bitmap = memory_metadata_get_bitmap(meta);
+	uint16_t size = ceil_division((uint16_t)size_, chunk_size);
+	for(i = offset; i < offset + size; i++) {
+		uint16_t bitmap_index = i / 32;
+		uint16_t bitmap_offset = i % 32;
+		unset_bitmap(&(bitmap[bitmap_index]), bitmap_offset);
+	}
+	debug_print_bitmap(meta);
+	// We're done!
 }
