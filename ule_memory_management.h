@@ -58,11 +58,15 @@ void ule_free(memory_metadata* meta, void *addr);
  * This may result in moving the entire memory object in memory, so
  * the possibly different address of the memory object is returned.
  * 
+ * @todo implement
+ * 
  * @return The new address of the memory object.
  */
 void* ule_realloc(memory_metadata* meta, void* addr, size_t size);
 
 /**
  * Get the size of the memory object at the given address.
+ * 
+ * @todo implement
  */
 int ule_get_size(void *addr);

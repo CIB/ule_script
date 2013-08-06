@@ -12,8 +12,9 @@ typedef struct  {
 	uint16_t size;
 } memory_object_entry;
 
-uint16_t ceil_division(uint16_t a, uint16_t b) {
-	return ceil((float) a / (float) b);
+static inline uint16_t ceil_division(uint16_t a, uint16_t b) {
+	uint16_t tmp = a % b;
+	return (a / b) + (tmp > 0);
 }
 
 uint8_t read_bitmap(uint32_t bitmap, uint8_t index) {
@@ -59,12 +60,16 @@ memory_metadata *memory_metadata_create(void *addr, uint16_t size,
 	metadata->number_objects = 0; // no chunks just yet!
 	
 	uint32_t *bitmap = memory_metadata_get_bitmap(metadata);
-	memset(bitmap, '\0', metadata->size);
+	uint16_t i;
+	for(i=0; i < metadata->size; i++) {
+		bitmap[i] = 0;
+	}
 	
 	
 	return metadata;
 }
 
+#ifdef ULE_DEBUG
 void debug_print_bitmap(memory_metadata *meta) {
 	uint32_t *bitmap = memory_metadata_get_bitmap(meta);
 	printf("Bitmap: ");
@@ -88,6 +93,7 @@ void debug_print_bitmap(memory_metadata *meta) {
 	}
 	printf("\n");
 }
+#endif
 
 void *ule_malloc(memory_metadata *meta, size_t size_) {
 	uint16_t size = ceil_division((uint16_t)size_, chunk_size);
@@ -128,7 +134,9 @@ void *ule_malloc(memory_metadata *meta, size_t size_) {
 			meta->number_objects++;
 			
 			void *data = memory_metadata_get_data(meta);
-			debug_print_bitmap(meta);
+			#ifdef ULE_DEBUG
+				debug_print_bitmap(meta);
+			#endif
 			return data + i * chunk_size;
 		}
 	}
@@ -173,6 +181,8 @@ void ule_free(memory_metadata* meta, void *addr) {
 		uint16_t bitmap_offset = i % 32;
 		unset_bitmap(&(bitmap[bitmap_index]), bitmap_offset);
 	}
-	debug_print_bitmap(meta);
+	#ifdef ULE_DEBUG
+		debug_print_bitmap(meta);
+	#endif
 	// We're done!
 }
