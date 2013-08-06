@@ -186,3 +186,35 @@ void ule_free(memory_metadata* meta, void *addr) {
 	#endif
 	// We're done!
 }
+
+uint16_t ule_get_size(memory_metadata* meta, void *addr) {
+	void *data = memory_metadata_get_data(meta);
+	uint16_t offset = (addr - data) / chunk_size;
+	
+	memory_object_entry *chunk_list = 
+		memory_metadata_get_chunk_list(meta);
+		
+	int i;
+	for(i = 0; i < meta->number_objects; i++) {
+		if(chunk_list[i].offset == offset) {
+			return chunk_list[i].size;
+		}
+	}
+}
+
+void* ule_realloc(memory_metadata* meta, void* addr, size_t size) {
+	uint16_t old_size = ule_get_size(meta, addr);
+	ule_free(meta, addr);
+	
+	char *rval = ule_malloc(meta, size);
+	char *addr_as_char = addr;
+	
+	// Copy over the data
+	int i;
+	for(i = 0; i < old_size; i++) {
+		rval[i] =  addr_as_char[i];
+	}
+	
+	// Done!
+	return rval;
+}

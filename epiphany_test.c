@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 	memory_metadata *metadata = memory_metadata_create(&heap[0], 2048,
 		128);
 	void *a = ule_malloc(metadata, 512);
-	void *b = ule_malloc(metadata, 16);
+	int  *b = (int*) ule_malloc(metadata, 16);
 	void *c = ule_malloc(metadata, 128);
 	printf("1 B is at %u\n", (int) b);
 	
@@ -19,15 +19,14 @@ int main(int argc, char** argv) {
 	ule_free(metadata, b);
 	
 	// And allocate it again at the same size, it should be in the same spot!
-	b = ule_malloc(metadata, 16);
-	printf("2 B is at %u\n", (int) b);
+	b = (int*) ule_malloc(metadata, 16);
+	b[0] = 10;
+	printf("2 B is at %u, first byte is %d\n", (int) b, b[0]);
 	
-	// Free once again
-	ule_free(metadata, b);
-	
-	// Now allocate but larger, it should be elsewhere
-	b = ule_malloc(metadata, 128);
-	printf("3 B is at %u\n", (int) b);
+	// Now reallocate but larger, it should be elsewhere, and our data
+	// should have been preserved
+	b = (int*) ule_realloc(metadata, b, 128);
+	printf("3 B is at %u, first byte is %d\n", (int) b, b[0]);
 	
 	return 0;
 }

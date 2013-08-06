@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include "string.h"
 
+#define ULE_DEBUG
+
 // The minimum size of a managed memory chunk.
 static const uint16_t chunk_size = 16;
 
@@ -67,6 +69,5 @@ void* ule_realloc(memory_metadata* meta, void* addr, size_t size);
 /**
  * Get the size of the memory object at the given address.
  * 
- * @todo implement
  */
-int ule_get_size(void *addr);
+uint16_t ule_get_size(memory_metadata* meta, void *addr);
